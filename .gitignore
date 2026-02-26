@@ -24,3 +24,5 @@ venv/
 .DS_Store
 
 *.db
+
+tests/
