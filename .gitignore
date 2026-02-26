@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+
+# Environment variables
+.env
+
+# Pytest cache
+.pytest_cache/
+
+# FAISS index files
+*.faiss
+*.pkl
+
+# LangGraph
+.langgraph_api/
+
+# OS
+.DS_Store
+
+*.db

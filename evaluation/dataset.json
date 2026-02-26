@@ -1,0 +1,34 @@
+[
+  { "input": "Best time to visit Goa", "type": "normal" },
+  { "input": "Entry fee for Amber Fort", "type": "normal" },
+  { "input": "Compare Jaipur and Udaipur", "type": "comparison" },
+  { "input": "Give me 3 day itinerary for Jaipur", "type": "itinerary" },
+  { "input": "Budget for Manali for 4 days", "type": "normal" },
+
+  { "input": "Write Python code to sort a list", "type": "reject" },
+  { "input": "Explain Java OOP concepts", "type": "reject" },
+  { "input": "Who is the Prime Minister of India?", "type": "reject" },
+  { "input": "Give medical advice for fever", "type": "reject" },
+  { "input": "Explain machine learning", "type": "reject" },
+
+  { "input": "Plan 3 days in Jaipur", "type": "itinerary" },
+  { "input": "Jaipur vs Udaipur for honeymoon", "type": "comparison" },
+  { "input": "Lost passport in Paris", "type": "emergency" },
+  { "input": "I had an accident in London", "type": "emergency" },
+
+  { "input": "I prefer INR", "type": "memory" },
+  { "input": "Give me budget for Goa", "type": "memory_followup" },
+
+  { "input": "Plan something for 3 days", "type": "ambiguous" },
+  { "input": "Compare these two", "type": "ambiguous" },
+
+  { "input": "Is it safe to visit Kashmir?", "type": "safety" },
+  { "input": "Travel advisory for Paris", "type": "safety" },
+
+  { "input": "Give me train vs flight comparison", "type": "transport" },
+  { "input": "Rank attractions in Jaipur", "type": "ranking" },
+
+  { "input": "Tell me about Goa politics", "type": "reject" },
+  { "input": "Write C++ program for tourism app", "type": "reject" },
+  { "input": "Budget calculator code for travel", "type": "reject" }
+]

@@ -1,0 +1,83 @@
+[
+    {
+        "id": 1,
+        "date": "2026-02-19 11:19:53",
+        "Complaint_By": "bhavya",
+        "Nationality": "indian",
+        "Lost_Item": "bag",
+        "Location": "jaipur",
+        "status": "open"
+    },
+    {
+        "id": 2,
+        "date": "2026-02-20 13:01:42",
+        "Complaint_By": "james",
+        "Nationality": "german",
+        "Lost_Item": "pink vag",
+        "Location": "venice",
+        "status": "open"
+    },
+    {
+        "id": 3,
+        "date": "2026-02-20 17:48:14",
+        "Complaint_By": "type human",
+        "Nationality": "content type text",
+        "Lost_Item": "italian",
+        "Location": "text jane",
+        "status": "open"
+    },
+    {
+        "id": 4,
+        "date": "2026-02-20 17:51:00",
+        "Complaint_By": "type human",
+        "Nationality": "content type text",
+        "Lost_Item": "british",
+        "Location": "text marget",
+        "status": "open"
+    },
+    {
+        "id": 5,
+        "date": "2026-02-20 18:08:44",
+        "Complaint_By": "megan",
+        "Nationality": "britsh",
+        "Lost_Item": "blue bag",
+        "Location": "venice",
+        "status": "open"
+    },
+    {
+        "id": 6,
+        "date": "2026-02-20 20:35:07",
+        "Complaint_By": "april",
+        "Nationality": "indian",
+        "Lost_Item": "passport",
+        "Location": "mathura",
+        "status": "open"
+    },
+    {
+        "id": 7,
+        "date": "2026-02-21 09:22:09",
+        "Complaint_By": "rahul sharma",
+        "Nationality": "indian",
+        "Lost_Item": "passport",
+        "Location": "delhi",
+        "status": "open"
+    },
+    {
+        "id": 8,
+        "date": "2026-02-23 12:38:59",
+        "Complaint_By": "jerry",
+        "Nationality": "british",
+        "Lost_Item": "phone",
+        "Location": "london",
+        "status": "open"
+    },
+    {
+        "id": 9,
+        "date": "2026-02-23 13:05:24",
+        "Complaint_By": "jim",
+        "Nationality": "iraqi",
+        "Lost_Item": "phone",
+        "Location": "iran",
+        "status": "open"
+    }
+]
