@@ -11,7 +11,6 @@ from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, END
 from tavily import TavilyClient
 
-# ================= ENV =================
 
 load_dotenv()
 
@@ -22,8 +21,6 @@ llm = ChatGroq(
 )
 
 tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
-
-# ================= STATE =================
 
 class IntentType(str, Enum):
     itinerary = "itinerary"
@@ -49,9 +46,6 @@ class ChatState(TypedDict, total=False):
     risk_text: Optional[str]
     combined: Optional[bool]
 
-
-# ================= SCHEMAS =================
-
 class QuerySchema(BaseModel):
     is_travel_related: bool
     intent: IntentType
@@ -65,9 +59,6 @@ class QuerySchema(BaseModel):
 class RiskSchema(BaseModel):
     has_active_risk: bool
     risk_details: Optional[List[str]] = None
-
-
-# ================= HELPERS =================
 
 def extract_text(message):
     if isinstance(message, BaseMessage):
@@ -98,8 +89,6 @@ def call_llm(state: ChatState, prompt: str, schema=None):
     )
 
 
-# ================= NODES =================
-
 def classify_node(state: ChatState):
     result = call_llm(
         state,
@@ -119,7 +108,7 @@ def classify_node(state: ChatState):
 
         Travel-related includes itineraries, hotels, visas,
         attractions, comparisons, and emergency contact numbers.
-        Examples of NOT travel related:Science questions ,Biology question
+        Examples of NOT travel related:Science questions ,Biology question,math questions ,Definitions unrelated to travel,Programming questions,etc. 
 
         If user asks for police, ambulance, fire, hospital,
         SOS or emergency numbers → intent MUST be emergency.
@@ -136,9 +125,6 @@ def classify_node(state: ChatState):
 
 def route_query(state: ChatState):
     return state.get("intent") if state.get("is_travel_related") else "non_travel"
-
-
-# ====== ITINERARY FLOW ======
 
 def itinerary_node(state: ChatState):
     destination = state.get("destination")
@@ -207,9 +193,6 @@ def combine_node(state: ChatState):
 
     return {"messages": [AIMessage(content=final)], "combined": True}
 
-
-# ====== SINGLE EXECUTOR ======
-
 def executor_node(state: ChatState):
     question = extract_text(state["messages"][-1])
     intent = state.get("intent")
@@ -255,11 +238,7 @@ def non_travel_node(state: ChatState):
         ]
     }
 
-
-# ================= GRAPH =================
-
 uncompiled_graph = StateGraph(ChatState)
-
 uncompiled_graph.add_node("classify", classify_node)
 uncompiled_graph.add_node("itinerary", itinerary_node)
 uncompiled_graph.add_node("budget", budget_node)
