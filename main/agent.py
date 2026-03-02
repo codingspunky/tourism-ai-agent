@@ -6,17 +6,12 @@ from enum import Enum
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
-
-from langchain_core.messages import (
-    BaseMessage,
-    HumanMessage,
-    AIMessage,
-    SystemMessage,
-)
-
+from langchain_core.messages import BaseMessage, AIMessage, SystemMessage
 from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, END
 from tavily import TavilyClient
+
+# ================= ENV =================
 
 load_dotenv()
 
@@ -28,6 +23,8 @@ llm = ChatGroq(
 
 tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
+# ================= STATE =================
+
 class IntentType(str, Enum):
     itinerary = "itinerary"
     visa = "visa"
@@ -37,10 +34,9 @@ class IntentType(str, Enum):
     attraction = "attraction"
     general = "general"
 
+
 class ChatState(TypedDict, total=False):
     messages: Annotated[List[BaseMessage], add]
-
-    # classification
     is_travel_related: bool
     intent: str
     destination: Optional[str]
@@ -48,11 +44,13 @@ class ChatState(TypedDict, total=False):
     budget_type: Optional[str]
     place1: Optional[str]
     place2: Optional[str]
-
-    # parallel results
     itinerary_text: Optional[str]
     budget_text: Optional[str]
     risk_text: Optional[str]
+    combined: Optional[bool]
+
+
+# ================= SCHEMAS =================
 
 class QuerySchema(BaseModel):
     is_travel_related: bool
@@ -68,113 +66,115 @@ class RiskSchema(BaseModel):
     has_active_risk: bool
     risk_details: Optional[List[str]] = None
 
-def run_search(query: str, max_results: int = 5) -> str:
+
+# ================= HELPERS =================
+
+def extract_text(message):
+    if isinstance(message, BaseMessage):
+        return message.content
+    if isinstance(message, dict):
+        return message.get("content", "")
+    return str(message)
+
+
+def search(query: str) -> str:
     try:
         result = tavily.search(
             query=query,
             search_depth="advanced",
-            max_results=max_results,
+            max_results=5
         )
         return "\n".join(
             r.get("content", "") for r in result.get("results", [])
         )[:4000]
     except Exception:
         return ""
-    
+
+
+def call_llm(state: ChatState, prompt: str, schema=None):
+    model = llm.with_structured_output(schema) if schema else llm
+    return model.invoke(
+        state["messages"] + [SystemMessage(content=prompt)]
+    )
+
+
+# ================= NODES =================
+
 def classify_node(state: ChatState):
-    structured_llm = llm.with_structured_output(QuerySchema)
+    result = call_llm(
+        state,
+        """
+        You are a STRICT travel query classifier.
 
-    system_prompt = """
-    You are a travel query classifier.
+        Always return all required fields.
 
-    Travel-related includes:
-    - trip planning
-    - itineraries
-    - hotels
-    - visas
-    - attractions
-    - comparisons
-    - travel safety
-    - emergency contact numbers in a destination
-    - medical emergency numbers in a city
-    - police or ambulance numbers for travelers
+        If NOT travel related:
+        - is_travel_related = false
+        - intent = general
+        - destination = null
+        - days = null
+        - budget_type = null
+        - place1 = null
+        - place2 = null
 
-    Determine:
-    - is_travel_related (true/false)
-    - intent: itinerary, visa, hotel, comparison, emergency, attraction, general
-    - Extract destination, days, budget_type, place1, place2
+        Travel-related includes itineraries, hotels, visas,
+        attractions, comparisons, and emergency contact numbers.
+        Examples of NOT travel related:Science questions ,Biology question
 
-    If the question asks for emergency numbers in a city,
-    intent MUST be: emergency.
-    """
+        If user asks for police, ambulance, fire, hospital,
+        SOS or emergency numbers → intent MUST be emergency.
 
-    result = structured_llm.invoke(
-        state["messages"] + [SystemMessage(content=system_prompt)]
+        Return structured output only.
+        """,
+        QuerySchema,
     )
 
     data = result.model_dump()
     data["intent"] = data["intent"].value
     return data
+
+
 def route_query(state: ChatState):
-    if not state.get("is_travel_related"):
-        return "non_travel"
-    return state.get("intent", "general")
+    return state.get("intent") if state.get("is_travel_related") else "non_travel"
+
+
+# ====== ITINERARY FLOW ======
 
 def itinerary_node(state: ChatState):
     destination = state.get("destination")
-    days = state.get("days") or 3
+    days = state.get("days", 3)
 
-    prompt = f"""
-    Create a realistic {days}-day travel itinerary for {destination}.
-    No prices.
-    Clear daily structure.
-    """
-
-    response = llm.invoke(
-        state["messages"] + [SystemMessage(content=prompt)]
+    response = call_llm(
+        state,
+        f"Create a {days}-day travel itinerary for {destination}. No pricing."
     )
 
     return {"itinerary_text": response.content}
+
+
 def budget_node(state: ChatState):
     destination = state.get("destination")
-    days = state.get("days") or 3
+    days = state.get("days", 3)
 
-    search_text = run_search(
-        f"Average mid range travel cost per day in {destination}"
-    )
+    info = search(f"Average mid range travel cost per day in {destination}")
 
-    prompt = f"""
-    Based on verified information below,
-    estimate total budget for {days} days in {destination}.
-    Provide breakdown and total.
-
-    {search_text}
-    """
-
-    response = llm.invoke(
-        state["messages"] + [SystemMessage(content=prompt)]
+    response = call_llm(
+        state,
+        f"Estimate total budget for {days} days in {destination}.\n{info}"
     )
 
     return {"budget_text": response.content}
 
+
 def risk_node(state: ChatState):
     destination = state.get("destination")
 
-    search_text = run_search(
-        f"Current official travel advisory for {destination}"
-    )
+    info = search(f"Current official travel advisory for {destination}")
 
-    structured_llm = llm.with_structured_output(RiskSchema)
-
-    prompt = f"""
-    Analyze if active travel risks exist for {destination}.
-    If yes, list briefly.
-
-    {search_text}
-    """
-
-    result = structured_llm.invoke(
-        state["messages"] + [SystemMessage(content=prompt)]
+    result = call_llm(
+        state,
+        f"Analyze travel risks for {destination}.\n{info}",
+        RiskSchema,
     )
 
     data = result.model_dump()
@@ -184,68 +184,93 @@ def risk_node(state: ChatState):
 
     risks = "\n".join(f"- {r}" for r in data.get("risk_details", []))
     return {"risk_text": f"Travel Advisory:\n{risks}"}
-    
+
+
 def combine_node(state: ChatState):
-    if not state.get("budget_text") or not state.get("risk_text"):
+    if (
+        state.get("combined")
+        or not state.get("budget_text")
+        or not state.get("risk_text")
+    ):
         return {}
 
     final = f"""
-{state.get("itinerary_text", "")}
+🗺 Itinerary
+{state.get("itinerary_text","").strip()}
 
-Budget Estimate:
-{state.get("budget_text", "")}
+💰 Budget Estimate
+{state.get("budget_text","").strip()}
 
-Travel Advisory:
-{state.get("risk_text", "")}
+⚠ Travel Advisory
+{state.get("risk_text","").strip()}
 """
 
-    return {"messages": [AIMessage(content=final)]}
+    return {"messages": [AIMessage(content=final)], "combined": True}
+
+
+# ====== SINGLE EXECUTOR ======
 
 def executor_node(state: ChatState):
-    last_message = state["messages"][-1]
-    question = last_message.content if hasattr(last_message, "content") else str(last_message)
+    question = extract_text(state["messages"][-1])
+    intent = state.get("intent")
 
-    search_text = run_search(question)
+    info = search(question)
 
-    prompt = f"""
-    You are a professional travel assistant.
-    Answer clearly and concisely.
-    Remove website junk.
+    if intent == "emergency":
+        prompt = f"""
+        Provide ONLY official emergency contact numbers for {state.get("destination")}.
 
-    Question:
-    {question}
+        Include:
+        - Police
+        - Ambulance
+        - Fire
+        - General emergency number
 
-    Verified Info:
-    {search_text}
-    """
+        Do NOT describe disasters.
+        Do NOT provide history.
+        Use verified information:
+        {info}
+        """
+    else:
+        prompt = f"""
+        You are a professional travel assistant.
+        Answer clearly and concisely.
 
-    response = llm.invoke(
-        state["messages"] + [SystemMessage(content=prompt)]
-    )
+        Question:
+        {question}
 
-    return {
-        "messages": [AIMessage(content=response.content)]
-    }
+        Verified Info:
+        {info}
+        """
+
+    response = call_llm(state, prompt)
+
+    return {"messages": [AIMessage(content=response.content)]}
+
 
 def non_travel_node(state: ChatState):
     return {
         "messages": [
-            AIMessage(content="I specialize only in travel-related queries.")
+            AIMessage(content="I specialize in travel-related queries.")
         ]
     }
-builder = StateGraph(ChatState)
 
-builder.add_node("classify", classify_node)
-builder.add_node("itinerary", itinerary_node)
-builder.add_node("budget", budget_node)
-builder.add_node("risk", risk_node)
-builder.add_node("combine", combine_node)
-builder.add_node("executor", executor_node)
-builder.add_node("non_travel", non_travel_node)
 
-builder.set_entry_point("classify")
+# ================= GRAPH =================
 
-builder.add_conditional_edges(
+uncompiled_graph = StateGraph(ChatState)
+
+uncompiled_graph.add_node("classify", classify_node)
+uncompiled_graph.add_node("itinerary", itinerary_node)
+uncompiled_graph.add_node("budget", budget_node)
+uncompiled_graph.add_node("risk", risk_node)
+uncompiled_graph.add_node("combine", combine_node)
+uncompiled_graph.add_node("executor", executor_node)
+uncompiled_graph.add_node("non_travel", non_travel_node)
+
+uncompiled_graph.set_entry_point("classify")
+
+uncompiled_graph.add_conditional_edges(
     "classify",
     route_query,
     {
@@ -257,20 +282,17 @@ builder.add_conditional_edges(
         "attraction": "executor",
         "general": "executor",
         "non_travel": "non_travel",
-    }
+    },
 )
 
-# Parallel fan-out
-builder.add_edge("itinerary", "budget")
-builder.add_edge("itinerary", "risk")
+uncompiled_graph.add_edge("itinerary", "budget")
+uncompiled_graph.add_edge("itinerary", "risk")
 
-# Merge
-builder.add_edge("budget", "combine")
-builder.add_edge("risk", "combine")
+uncompiled_graph.add_edge("budget", "combine")
+uncompiled_graph.add_edge("risk", "combine")
 
-# End
-builder.add_edge("combine", END)
-builder.add_edge("executor", END)
-builder.add_edge("non_travel", END)
+uncompiled_graph.add_edge("combine", END)
+uncompiled_graph.add_edge("executor", END)
+uncompiled_graph.add_edge("non_travel", END)
 
-graph = builder.compile()
+graph = uncompiled_graph.compile()
